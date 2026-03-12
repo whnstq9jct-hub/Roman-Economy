@@ -1,0 +1,341 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import fsolve, minimize_scalar
+
+class RomanAfricanEconomy:
+    """
+    Simulates the Late Roman African economy with monopsony power
+    and consumption goods dynamics across two periods.
+    """
+    
+    def __init__(self):
+        # Production parameters
+        self.A = 1.0          # TFP
+        self.T = 100.0        # Land (fixed)
+        self.alpha = 0.3      # Land elasticity
+        self.beta = 0.6       # Labor elasticity
+        self.P = 1.0          # Output price (numeraire)
+        
+        # Labor supply parameters
+        self.gamma_p1 = 10    # Period 1: Inelastic (weak peasants)
+        self.gamma_p2 = 15    # Period 2: More elastic (stronger peasants)
+        self.eta_p1 = 0.3     # Period 1: Low elasticity
+        self.eta_p2 = 0.8     # Period 2: High elasticity
+        
+        # Consumption parameters
+        self.delta = 0.4      # Preference for consumption goods
+        self.sigma = 1.5      # Elasticity of substitution
+        self.rho = (self.sigma - 1) / self.sigma
+        
+        # Prices
+        self.P_s = 1.0               # Subsistence goods (numeraire)
+        self.P_c_p1 = 2.0            # Period 1: Import price
+        self.P_c_p2 = 4.0            # Period 2: Very high import price
+        self.P_l_p2 = 1.5            # Period 2: Local production price
+    
+    def production(self, L):
+        """Production function Y = A * T^α * L^β"""
+        return self.A * (self.T ** self.alpha) * (L ** self.beta)
+    
+    def MPL(self, L):
+        """Marginal Product of Labor"""
+        return self.beta * self.A * (self.T ** self.alpha) * (L ** (self.beta - 1))
+    
+    def labor_supply_inverse(self, L, gamma, eta):
+        """Inverse labor supply: w(L)"""
+        return (L / gamma) ** (1 / eta)
+    
+    def monopsony_equilibrium(self, gamma, eta):
+        """
+        Solve for monopsony equilibrium labor and wage.
+        FOC: P * MPL = w + L * (dw/dL)
+        """
+        def foc(L):
+            if L <= 0:
+                return 1e10
+            mpl = self.MPL(L)
+            w = self.labor_supply_inverse(L, gamma, eta)
+            dw_dL = (1 / eta) * (1 / gamma) * ((L / gamma) ** (1/eta - 1))
+            return self.P * mpl - (w + L * dw_dL)
+        
+        # Find equilibrium
+        L_init = 50
+        result = fsolve(foc, L_init)
+        L_eq = result<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>
+        w_eq = self.labor_supply_inverse(L_eq, gamma, eta)
+        
+        return L_eq, w_eq
+    
+    def competitive_equilibrium(self, gamma, eta):
+        """
+        Competitive equilibrium: w = P * MPL
+        """
+        def foc(L):
+            if L <= 0:
+                return 1e10
+            w_supply = self.labor_supply_inverse(L, gamma, eta)
+            w_demand = self.P * self.MPL(L)
+            return w_demand - w_supply
+        
+        L_init = 50
+        result = fsolve(foc, L_init)
+        L_eq = result<a href="" class="citation-link" target="_blank" style="vertical-align: super; font-size: 0.8em; margin-left: 3px;">[0]</a>
+        w_eq = self.P * self.MPL(L_eq)
+        
+        return L_eq, w_eq
+    
+    def optimal_consumption(self, w, L, P_c):
+        """
+        Solve for optimal consumption bundle given wage and prices.
+        """
+        income = w * L
+        
+        # From FOC: C_c/C_s = [(δ/(1-δ)) * (P_s/P_c)]^σ
+        ratio = ((self.delta / (1 - self.delta)) * 
+                 (self.P_s / P_c)) ** self.sigma
+        
+        # Budget constraint: P_c * C_c + P_s * C_s = income
+        # Substitute C_c = ratio * C_s
+        C_s = income / (P_c * ratio + self.P_s)
+        C_c = ratio * C_s
+        
+        # Calculate utility
+        utility = (self.delta * (C_c ** self.rho) + 
+                   (1 - self.delta) * (C_s ** self.rho)) ** (1 / self.rho)
+        
+        return C_c, C_s, utility
+    
+    def simulate_period_1(self):
+        """Period 1: Post-Punic Wars with monopsony"""
+        print("="*60)
+        print("PERIOD 1: Post-Punic Wars (Monopsony)")
+        print("="*60)
+        
+        # Monopsony equilibrium
+        L_m, w_m = self.monopsony_equilibrium(self.gamma_p1, self.eta_p1)
+        Y_m = self.production(L_m)
+        MPL_m = self.MPL(L_m)
+        
+        # Competitive benchmark (counterfactual)
+        L_c, w_c = self.competitive_equilibrium(self.gamma_p1, self.eta_p1)
+        
+        # Consumption with imports
+        C_c, C_s, U = self.optimal_consumption(w_m, L_m, self.P_c_p1)
+        
+        # Monopsony markdown
+        markdown = (w_c - w_m) / w_c * 100
+        
+        print(f"\nLabor Market:")
+        print(f"  Monopsony Labor: {L_m:.2f}")
+        print(f"  Monopsony Wage: {w_m:.3f}")
+        print(f"  Competitive Wage (counterfactual): {w_c:.3f}")
+        print(f"  Markdown: {markdown:.1f}%")
+        print(f"  MPL: {MPL_m:.3f}")
+        print(f"\nProduction:")
+        print(f"  Output: {Y_m:.2f}")
+        print(f"\nConsumption:")
+        print(f"  Consumption Goods (imported): {C_c:.2f}")
+        print(f"  Subsistence Goods: {C_s:.2f}")
+        print(f"  Utility: {U:.3f}")
+        print(f"  Import Price: {self.P_c_p1:.2f}")
+        
+        return {
+            'L': L_m, 'w': w_m, 'Y': Y_m, 'MPL': MPL_m,
+            'C_c': C_c, 'C_s': C_s, 'U': U, 'markdown': markdown
+        }
+    
+    def simulate_period_2(self):
+        """Period 2: Third Century Crisis with weakened monopsony"""
+        print("\n" + "="*60)
+        print("PERIOD 2: Third Century Crisis (Weakened Monopsony)")
+        print("="*60)
+        
+        # Equilibrium with more elastic labor supply
+        L_m2, w_m2 = self.monopsony_equilibrium(self.gamma_p2, self.eta_p2)
+        Y_m2 = self.production(L_m2)
+        MPL_m2 = self.MPL(L_m2)
+        
+        # Competitive benchmark
+        L_c2, w_c2 = self.competitive_equilibrium(self.gamma_p2, self.eta_p2)
+        
+        # Consumption with LOCAL production (lower price)
+        C_l, C_s, U = self.optimal_consumption(w_m2, L_m2, self.P_l_p2)
+        
+        # Markdown (much smaller now)
+        markdown = (w_c2 - w_m2) / w_c2 * 100
+        
+        print(f"\nLabor Market:")
+        print(f"  Labor: {L_m2:.2f}")
+        print(f"  Wage: {w_m2:.3f}")
+        print(f"  Competitive Wage (counterfactual): {w_c2:.3f}")
+        print(f"  Markdown: {markdown:.1f}%")
+        print(f"  MPL: {MPL_m2:.3f}")
+        print(f"\nProduction:")
+        print(f"  Output: {Y_m2:.2f}")
+        print(f"\nConsumption:")
+        print(f"  Consumption Goods (LOCAL): {C_l:.2f}")
+        print(f"  Subsistence Goods: {C_s:.2f}")
+        print(f"  Utility: {U:.3f}")
+        print(f"  Local Production Price: {self.P_l_p2:.2f}")
+        print(f"  (Import price would be: {self.P_c_p2:.2f})")
+        
+        print(f"\n{'Trade Disruption Effect:':}")
+        print(f"  Import substitution occurs because P_import ({self.P_c_p2:.2f}) > P_local ({self.P_l_p2:.2f})")
+        
+        return {
+            'L': L_m2, 'w': w_m2, 'Y': Y_m2, 'MPL': MPL_m2,
+            'C_c': C_l, 'C_s': C_s, 'U': U, 'markdown': markdown
+        }
+    
+    def plot_comparison(self, p1_results, p2_results):
+        """Create visualization comparing both periods"""
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        fig.suptitle('Late Roman African Economy: Period 1 vs Period 2', 
+                     fontsize=16, fontweight='bold')
+        
+        # Data for plotting
+        periods = ['Period 1\n(Post-Punic)', 'Period 2\n(3rd Century)']
+        wages = [p1_results['w'], p2_results['w']]
+        labor = [p1_results['L'], p2_results['L']]
+        consumption = [p1_results['C_c'], p2_results['C_c']]
+        utility = [p1_results['U'], p2_results['U']]
+        markdown = [p1_results['markdown'], p2_results['markdown']]
+        output = [p1_results['Y'], p2_results['Y']]
+        
+        # Plot 1: Wages
+        axes[0, 0].bar(periods, wages, color=['#8B0000', '#228B22'])
+        axes[0, 0].set_ylabel('Wage Rate')
+        axes[0, 0].set_title('Peasant Wages')
+        axes[0, 0].grid(axis='y', alpha=0.3)
+        
+        # Plot 2: Labor
+        axes[0, 1].bar(periods, labor, color=['#8B0000', '#228B22'])
+        axes[0, 1].set_ylabel('Labor')
+        axes[0, 1].set_title('Labor Employment')
+        axes[0, 1].grid(axis='y', alpha=0.3)
+        
+        # Plot 3: Consumption Goods
+        axes[0, 2].bar(periods, consumption, color=['#8B0000', '#228B22'])
+        axes[0, 2].set_ylabel('Consumption Goods')
+        axes[0, 2].set_title('Consumption Goods\n(Imported→Local)')
+        axes[0, 2].grid(axis='y', alpha=0.3)
+        
+        # Plot 4: Utility
+        axes[1, 0].bar(periods, utility, color=['#8B0000', '#228B22'])
+        axes[1, 0].set_ylabel('Utility')
+        axes[1, 0].set_title('Peasant Welfare')
+        axes[1, 0].grid(axis='y', alpha=0.3)
+        
+        # Plot 5: Monopsony Markdown
+        axes[1, 1].bar(periods, markdown, color=['#8B0000', '#228B22'])
+        axes[1, 1].set_ylabel('Markdown (%)')
+        axes[1, 1].set_title('Monopsony Power\n(Wage Suppression)')
+        axes[1, 1].grid(axis='y', alpha=0.3)
+        
+        # Plot 6: Output
+        axes[1, 2].bar(periods, output, color=['#8B0000', '#228B22'])
+        axes[1, 2].set_ylabel('Output')
+        axes[1, 2].set_title('Agricultural Output')
+        axes[1, 2].grid(axis='y', alpha=0.3)
+        
+        plt.tight_layout()
+        return fig
+    
+    def plot_labor_market(self):
+        """Plot labor market equilibria for both periods"""
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        
+        # Labor range
+        L_range = np.linspace(1, 100, 200)
+        
+        # Period 1
+        MPL_p1 = [self.P * self.MPL(L) for L in L_range]
+        w_supply_p1 = [self.labor_supply_inverse(L, self.gamma_p1, self.eta_p1) 
+                       for L in L_range]
+        
+        L_m1, w_m1 = self.monopsony_equilibrium(self.gamma_p1, self.eta_p1)
+        L_c1, w_c1 = self.competitive_equilibrium(self.gamma_p1, self.eta_p1)
+        
+        ax1.plot(L_range, MPL_p1, 'b-', linewidth=2, label='MPL (Labor Demand)')
+        ax1.plot(L_range, w_supply_p1, 'r-', linewidth=2, label='Labor Supply')
+        ax1.plot(L_m1, w_m1, 'ro', markersize=10, label=f'Monopsony Eq.')
+        ax1.plot(L_c1, w_c1, 'go', markersize=10, label='Competitive Eq.')
+        ax1.axhline(w_m1, color='r', linestyle='--', alpha=0.5)
+        ax1.axhline(w_c1, color='g', linestyle='--', alpha=0.5)
+        ax1.set_xlabel('Labor (L)')
+        ax1.set_ylabel('Wage (w)')
+        ax1.set_title('Period 1: Strong Monopsony Power')
+        ax1.legend()
+        ax1.grid(alpha=0.3)
+        
+        # Period 2
+        MPL_p2 = [self.P * self.MPL(L) for L in L_range]
+        w_supply_p2 = [self.labor_supply_inverse(L, self.gamma_p2, self.eta_p2) 
+                       for L in L_range]
+        
+        L_m2, w_m2 = self.monopsony_equilibrium(self.gamma_p2, self.eta_p2)
+        L_c2, w_c2 = self.competitive_equilibrium(self.gamma_p2, self.eta_p2)
+        
+        ax2.plot(L_range, MPL_p2, 'b-', linewidth=2, label='MPL (Labor Demand)')
+        ax2.plot(L_range, w_supply_p2, 'r-', linewidth=2, label='Labor Supply (More Elastic)')
+        ax2.plot(L_m2, w_m2, 'ro', markersize=10, label=f'Monopsony Eq.')
+        ax2.plot(L_c2, w_c2, 'go', markersize=10, label='Competitive Eq.')
+        ax2.axhline(w_m2, color='r', linestyle='--', alpha=0.5)
+        ax2.axhline(w_c2, color='g', linestyle='--', alpha=0.5)
+        ax2.set_xlabel('Labor (L)')
+        ax2.set_ylabel('Wage (w)')
+        ax2.set_title('Period 2: Weakened Monopsony Power')
+        ax2.legend()
+        ax2.grid(alpha=0.3)
+        
+        plt.tight_layout()
+        return fig
+
+
+# Run simulation
+def main():
+    print("\n" + "█"*60)
+    print("  SIMULATION: Late Roman African Economy")
+    print("  Monopsony Power and Import Substitution Model")
+    print("█"*60 + "\n")
+    
+    economy = RomanAfricanEconomy()
+    
+    # Simulate both periods
+    p1_results = economy.simulate_period_1()
+    p2_results = economy.simulate_period_2()
+    
+    # Summary comparison
+    print("\n" + "="*60)
+    print("SUMMARY: Period 1 → Period 2 Changes")
+    print("="*60)
+    print(f"Wage:              {p1_results['w']:.3f} → {p2_results['w']:.3f} "
+          f"({(p2_results['w']/p1_results['w']-1)*100:+.1f}%)")
+    print(f"Labor:             {p1_results['L']:.2f} → {p2_results['L']:.2f} "
+          f"({(p2_results['L']/p1_results['L']-1)*100:+.1f}%)")
+    print(f"Consumption Goods: {p1_results['C_c']:.2f} → {p2_results['C_c']:.2f} "
+          f"({(p2_results['C_c']/p1_results['C_c']-1)*100:+.1f}%)")
+    print(f"Utility:           {p1_results['U']:.3f} → {p2_results['U']:.3f} "
+          f"({(p2_results['U']/p1_results['U']-1)*100:+.1f}%)")
+    print(f"Monopsony Power:   {p1_results['markdown']:.1f}% → {p2_results['markdown']:.1f}% "
+          f"(markdown reduction)")
+    
+    print("\n" + "="*60)
+    print("HISTORICAL INTERPRETATION")
+    print("="*60)
+    print("✓ Third century crisis WEAKENS landowner monopsony power")
+    print("✓ Trade disruption makes LOCAL production competitive")
+    print("✓ Higher wages + lower local prices → MORE consumption goods")
+    print("✓ Matches archaeological evidence: coins, local pottery, prosperity")
+    print("="*60 + "\n")
+    
+    # Create visualizations
+    fig1 = economy.plot_comparison(p1_results, p2_results)
+    fig2 = economy.plot_labor_market()
+    
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
+
