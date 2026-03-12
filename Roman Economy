@@ -335,6 +335,10 @@ def main():
     
     plt.show()
 
+   pip install numpy matplotlib scipy
+      python roman_africa_economy.py
+   
+
 
 if __name__ == "__main__":
     main()
